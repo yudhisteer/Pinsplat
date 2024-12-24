@@ -7,8 +7,8 @@ export default {
     publicDir: '../public/',
     plugins:
     [
-        // Restart server on static/public file change
-        restart({ restart: [ '../public/**', ] }),
+        // Restart server on static/public file change    , '../src/**' 
+        restart({ restart: [ '../public/**'] }),
 
         // React support
         react(),
