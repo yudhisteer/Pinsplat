@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build"
   },
   "devDependencies": {
@@ -17,6 +17,7 @@
     "@react-three/fiber": "^8.16.8",
     "react": "18.3",
     "react-dom": "18.3",
+    "react-syntax-highlighter": "^15.6.1",
     "three": "^0.166.1"
   }
 }
