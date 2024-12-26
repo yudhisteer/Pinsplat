@@ -218,6 +218,8 @@ const GuiControls = () => {
   const orbitControlsRef = useRef();
   const guiRef = useRef();
   const initialDistanceRef = useRef(5);
+  const initialRotationRef = useRef(new THREE.Euler());
+  const initialPositionRef = useRef(new THREE.Vector3());
   
   const lastLoggedValues = useRef({
     position: new THREE.Vector3(),
@@ -231,40 +233,45 @@ const GuiControls = () => {
     showLogs: true
   });
 
-  // Prevent zoom via wheel
+  // Prevent zoom and rotation events
   useEffect(() => {
-    const preventZoom = (e) => {
-      if (!settingsRef.current.enableZoom) {
+    const preventControl = (e) => {
+      if (!settingsRef.current.enableZoom || !settingsRef.current.enableRotation) {
         e.preventDefault();
         e.stopPropagation();
       }
     };
 
-    window.addEventListener('wheel', preventZoom, { passive: false });
-    window.addEventListener('touchmove', preventZoom, { passive: false });
+    window.addEventListener('wheel', preventControl, { passive: false });
+    window.addEventListener('touchmove', preventControl, { passive: false });
+    window.addEventListener('mousedown', preventControl, { passive: false });
 
     return () => {
-      window.removeEventListener('wheel', preventZoom);
-      window.removeEventListener('touchmove', preventZoom);
+      window.removeEventListener('wheel', preventControl);
+      window.removeEventListener('touchmove', preventControl);
+      window.removeEventListener('mousedown', preventControl);
     };
   }, []);
 
-  // Force maintain distance when zoom is disabled
+  // Force maintain distance and rotation when disabled
   useFrame(() => {
-    if (!settingsRef.current.enableZoom && orbitControlsRef.current) {
+    if (!orbitControlsRef.current) return;
+
+    if (!settingsRef.current.enableZoom) {
       const currentPosition = camera.position;
       const target = orbitControlsRef.current.target;
-      
-      // Calculate current direction from target to camera
       const direction = currentPosition.clone().sub(target).normalize();
-      
-      // Force camera to maintain initial distance
       const newPosition = direction.multiplyScalar(initialDistanceRef.current).add(target);
       camera.position.copy(newPosition);
     }
 
+    if (!settingsRef.current.enableRotation) {
+      camera.rotation.copy(initialRotationRef.current);
+      camera.position.copy(initialPositionRef.current);
+    }
+
     // Logging logic
-    if (!settingsRef.current.showLogs || !orbitControlsRef.current) return;
+    if (!settingsRef.current.showLogs) return;
 
     const currentPosition = camera.position.clone();
     const currentRotation = camera.rotation.clone();
@@ -297,7 +304,6 @@ const GuiControls = () => {
     }
   });
 
-  // Initialize GUI
   useEffect(() => {
     if (guiRef.current) return;
     
@@ -313,7 +319,25 @@ const GuiControls = () => {
         settingsRef.current.enableRotation = value;
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enableRotate = value;
-          // Reset controls
+          
+          // Store initial rotation and position when disabling rotation
+          if (!value) {
+            initialRotationRef.current.copy(camera.rotation);
+            initialPositionRef.current.copy(camera.position);
+          }
+
+          // Disable all rotation-related controls
+          orbitControlsRef.current.mouseButtons = {
+            LEFT: value ? THREE.MOUSE.ROTATE : null,
+            MIDDLE: null,
+            RIGHT: null
+          };
+          
+          orbitControlsRef.current.touches = {
+            ONE: value ? THREE.TOUCH.ROTATE : null,
+            TWO: null
+          };
+          
           orbitControlsRef.current.update();
         }
       });
@@ -326,21 +350,18 @@ const GuiControls = () => {
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enableZoom = value;
           
-          // Store initial distance when disabling zoom
           if (!value) {
-            const distance = camera.position.distanceTo(orbitControlsRef.current.target);
-            initialDistanceRef.current = distance;
+            initialDistanceRef.current = camera.position.distanceTo(orbitControlsRef.current.target);
           }
 
-          // Disable all zoom-related controls
           orbitControlsRef.current.mouseButtons = {
-            LEFT: THREE.MOUSE.ROTATE,
+            LEFT: settingsRef.current.enableRotation ? THREE.MOUSE.ROTATE : null,
             MIDDLE: null,
             RIGHT: null
           };
           
           orbitControlsRef.current.touches = {
-            ONE: THREE.TOUCH.ROTATE,
+            ONE: settingsRef.current.enableRotation ? THREE.TOUCH.ROTATE : null,
             TWO: null
           };
           
@@ -360,6 +381,8 @@ const GuiControls = () => {
           if (orbitControlsRef.current) {
             orbitControlsRef.current.target.set(0, 0, 0);
             initialDistanceRef.current = 5;
+            initialRotationRef.current.copy(camera.rotation);
+            initialPositionRef.current.copy(camera.position);
             orbitControlsRef.current.update();
           }
         }
