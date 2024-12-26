@@ -175,21 +175,36 @@ const Bread = () => {
     loader.setDRACOLoader(dracoLoader);
   });
 
+  const pivotRef = useRef();
+  const { camera } = useThree();
+  const baseScale = 100; // Adjust this to set the base size of the axes
+
+  useFrame(() => {
+    if (pivotRef.current) {
+      // Calculate distance from camera to object
+      const distance = camera.position.distanceTo(pivotRef.current.position);
+      // Adjust scale based on distance
+      pivotRef.current.scale.setScalar(distance / baseScale);
+    }
+  });
+
   return (
-    <PivotControls
-      anchor={[0, 0, 0]}
-      depthTest={false}
-      lineWidth={4}
-      axisColors={['#9381ff', '#ff4d6d', '#7ae582']}
-      scale={100}
-      fixed={true}
-      visible={true} // Make sure visibility is enabled
-    >
-      <primitive object={gltf.scene} position={[0, 0.36, 0]} />
-    </PivotControls>
+    <group>
+      <PivotControls
+        ref={pivotRef}
+        anchor={[0, 0, 0]}
+        depthTest={false}
+        lineWidth={4}
+        axisColors={['#9381ff', '#ff4d6d', '#7ae582']}
+        scale={.15} // This will be dynamically adjusted
+        fixed={false} // Set to false to allow dynamic scaling
+        visible={true}
+      >
+        <primitive object={gltf.scene} position={[0, 0.36, 0]} />
+      </PivotControls>
+    </group>
   );
 };
-
 // Main Experience Component
 const Experience = () => {
   return (
