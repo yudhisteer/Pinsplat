@@ -257,6 +257,7 @@ const Bread = () => {
         scale={0.15}
         fixed={false}
         visible={showAxes}
+        activeAxes={[true, false, true]} // [x, y, z] - setting z to false
       >
         <primitive
           ref={meshRef}
