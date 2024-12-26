@@ -5,6 +5,8 @@ import { useRef, useState, useEffect } from "react";
 import { Vector2, Raycaster } from "three";
 import * as THREE from 'three';
 import { useCallback } from 'react';
+import { PivotControls, OrbitControls } from '@react-three/drei'
+
 
 // Set up the DRACO Loader
 const dracoLoader = new DRACOLoader();
@@ -173,13 +175,26 @@ const Bread = () => {
     loader.setDRACOLoader(dracoLoader);
   });
 
-  return <primitive object={gltf.scene} position={[0, 0.36, 0]} />;
+  return (
+    <PivotControls
+      anchor={[0, 0, 0]}
+      depthTest={false}
+      lineWidth={4}
+      axisColors={['#9381ff', '#ff4d6d', '#7ae582']}
+      scale={100}
+      fixed={true}
+      visible={true} // Make sure visibility is enabled
+    >
+      <primitive object={gltf.scene} position={[0, 0.36, 0]} />
+    </PivotControls>
+  );
 };
 
 // Main Experience Component
 const Experience = () => {
   return (
     <group>
+      <OrbitControls makeDefault />
       <ambientLight intensity={1} />
       <Plane />
       <Table />
@@ -187,5 +202,6 @@ const Experience = () => {
     </group>
   );
 };
+
 
 export default Experience;
