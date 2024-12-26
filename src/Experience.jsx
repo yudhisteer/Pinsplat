@@ -6,6 +6,9 @@ import { Vector2, Raycaster } from "three";
 import * as THREE from 'three';
 import { useCallback } from 'react';
 import { PivotControls, OrbitControls } from '@react-three/drei'
+import GUI from 'lil-gui';
+
+
 
 
 // Set up the DRACO Loader
@@ -205,11 +208,100 @@ const Bread = () => {
     </group>
   );
 };
+
+// Main Experience Component
+const GuiControls = () => {
+  const { camera } = useThree();
+  const orbitControlsRef = useRef();
+  const [controls, setControls] = useState({
+    enableRotation: true,
+    enableZoom: true
+  });
+
+  const [orbitControls, setOrbitControls] = useState(null);
+
+  // Create GUI after orbitControls is available
+  useEffect(() => {
+    if (!orbitControls) return;
+    
+    // Create new GUI instance
+    const gui = new GUI({ width: 300 }); // Added width for better visibility
+    
+    const cameraFolder = gui.addFolder('Camera Controls');
+    
+    // Add rotation control
+    cameraFolder
+      .add(controls, 'enableRotation')
+      .name('Enable Rotation')
+      .onChange((value) => {
+        orbitControls.enableRotate = value;
+        setControls(prev => ({ ...prev, enableRotation: value }));
+      });
+
+    // Add zoom control
+    cameraFolder
+      .add(controls, 'enableZoom')
+      .name('Enable Zoom')
+      .onChange((value) => {
+        orbitControls.enableZoom = value;
+        setControls(prev => ({ ...prev, enableZoom: value }));
+      });
+
+    // Add reset camera button
+    cameraFolder
+      .add({
+        resetCamera: () => {
+          camera.position.set(0, 2, 5);
+          camera.lookAt(0, 0, 0);
+          if (orbitControls) {
+            orbitControls.target.set(0, 0, 0);
+            orbitControls.update();
+          }
+        }
+      }, 'resetCamera')
+      .name('Reset Camera');
+
+    // Open the folder by default
+    cameraFolder.open();
+
+    // Cleanup function
+    return () => {
+      gui.destroy();
+    };
+  }, [orbitControls, camera]); // Added orbitControls as dependency
+
+  // Update controls whenever they change
+  useEffect(() => {
+    if (orbitControls) {
+      orbitControls.enableRotate = controls.enableRotation;
+      orbitControls.enableZoom = controls.enableZoom;
+      orbitControls.update();
+    }
+  }, [controls, orbitControls]);
+
+  return (
+    <OrbitControls
+      ref={(ref) => {
+        if (ref) {
+          setOrbitControls(ref);
+          orbitControlsRef.current = ref;
+        }
+      }}
+      makeDefault
+      minDistance={2}
+      maxDistance={10}
+      enablePan={false}
+      enableRotate={controls.enableRotation}
+      enableZoom={controls.enableZoom}
+    />
+  );
+};
+
 // Main Experience Component
 const Experience = () => {
   return (
     <group>
-      <OrbitControls makeDefault />
+      <GuiControls />
       <ambientLight intensity={1} />
       <Plane />
       <Table />
@@ -217,6 +309,5 @@ const Experience = () => {
     </group>
   );
 };
-
 
 export default Experience;
