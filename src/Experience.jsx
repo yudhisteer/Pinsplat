@@ -5,7 +5,7 @@ import { useRef, useState, useEffect } from "react";
 import { Vector2, Raycaster } from "three";
 import * as THREE from 'three';
 import { useCallback } from 'react';
-import { PivotControls, OrbitControls } from '@react-three/drei'
+import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
 
 
@@ -209,95 +209,183 @@ const Bread = () => {
   );
 };
 
-// Main Experience Component
+
+
+
+
 const GuiControls = () => {
   const { camera } = useThree();
   const orbitControlsRef = useRef();
-  const [controls, setControls] = useState({
+  const guiRef = useRef();
+  const initialDistanceRef = useRef(5);
+  
+  const lastLoggedValues = useRef({
+    position: new THREE.Vector3(),
+    rotation: new THREE.Euler(),
+    distance: 0
+  });
+  
+  const settingsRef = useRef({
     enableRotation: true,
-    enableZoom: true
+    enableZoom: true,
+    showLogs: true
   });
 
-  const [orbitControls, setOrbitControls] = useState(null);
-
-  // Create GUI after orbitControls is available
+  // Prevent zoom via wheel
   useEffect(() => {
-    if (!orbitControls) return;
+    const preventZoom = (e) => {
+      if (!settingsRef.current.enableZoom) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('wheel', preventZoom, { passive: false });
+    window.addEventListener('touchmove', preventZoom, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', preventZoom);
+      window.removeEventListener('touchmove', preventZoom);
+    };
+  }, []);
+
+  // Force maintain distance when zoom is disabled
+  useFrame(() => {
+    if (!settingsRef.current.enableZoom && orbitControlsRef.current) {
+      const currentPosition = camera.position;
+      const target = orbitControlsRef.current.target;
+      
+      // Calculate current direction from target to camera
+      const direction = currentPosition.clone().sub(target).normalize();
+      
+      // Force camera to maintain initial distance
+      const newPosition = direction.multiplyScalar(initialDistanceRef.current).add(target);
+      camera.position.copy(newPosition);
+    }
+
+    // Logging logic
+    if (!settingsRef.current.showLogs || !orbitControlsRef.current) return;
+
+    const currentPosition = camera.position.clone();
+    const currentRotation = camera.rotation.clone();
+    const distance = currentPosition.distanceTo(orbitControlsRef.current.target);
+
+    const positionChanged = !currentPosition.equals(lastLoggedValues.current.position);
+    const rotationChanged = !currentRotation.equals(lastLoggedValues.current.rotation);
+    const distanceChanged = Math.abs(distance - lastLoggedValues.current.distance) > 0.01;
+
+    if (positionChanged || rotationChanged || distanceChanged) {
+      console.log('Scene Status:', {
+        position: {
+          x: currentPosition.x.toFixed(2),
+          y: currentPosition.y.toFixed(2),
+          z: currentPosition.z.toFixed(2)
+        },
+        rotation: {
+          x: THREE.MathUtils.radToDeg(currentRotation.x).toFixed(2),
+          y: THREE.MathUtils.radToDeg(currentRotation.y).toFixed(2),
+          z: THREE.MathUtils.radToDeg(currentRotation.z).toFixed(2)
+        },
+        distanceToTarget: distance.toFixed(2),
+        zoomEnabled: settingsRef.current.enableZoom,
+        rotationEnabled: settingsRef.current.enableRotation
+      });
+
+      lastLoggedValues.current.position.copy(currentPosition);
+      lastLoggedValues.current.rotation.copy(currentRotation);
+      lastLoggedValues.current.distance = distance;
+    }
+  });
+
+  // Initialize GUI
+  useEffect(() => {
+    if (guiRef.current) return;
     
-    // Create new GUI instance
-    const gui = new GUI({ width: 300 }); // Added width for better visibility
+    const gui = new GUI({ width: 300 });
+    guiRef.current = gui;
     
     const cameraFolder = gui.addFolder('Camera Controls');
     
-    // Add rotation control
     cameraFolder
-      .add(controls, 'enableRotation')
+      .add(settingsRef.current, 'enableRotation')
       .name('Enable Rotation')
       .onChange((value) => {
-        orbitControls.enableRotate = value;
-        setControls(prev => ({ ...prev, enableRotation: value }));
+        settingsRef.current.enableRotation = value;
+        if (orbitControlsRef.current) {
+          orbitControlsRef.current.enableRotate = value;
+          // Reset controls
+          orbitControlsRef.current.update();
+        }
       });
 
-    // Add zoom control
     cameraFolder
-      .add(controls, 'enableZoom')
+      .add(settingsRef.current, 'enableZoom')
       .name('Enable Zoom')
       .onChange((value) => {
-        orbitControls.enableZoom = value;
-        setControls(prev => ({ ...prev, enableZoom: value }));
+        settingsRef.current.enableZoom = value;
+        if (orbitControlsRef.current) {
+          orbitControlsRef.current.enableZoom = value;
+          
+          // Store initial distance when disabling zoom
+          if (!value) {
+            const distance = camera.position.distanceTo(orbitControlsRef.current.target);
+            initialDistanceRef.current = distance;
+          }
+
+          // Disable all zoom-related controls
+          orbitControlsRef.current.mouseButtons = {
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: null,
+            RIGHT: null
+          };
+          
+          orbitControlsRef.current.touches = {
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: null
+          };
+          
+          orbitControlsRef.current.update();
+        }
       });
 
-    // Add reset camera button
+    cameraFolder
+      .add(settingsRef.current, 'showLogs')
+      .name('Show Logs');
+
     cameraFolder
       .add({
         resetCamera: () => {
           camera.position.set(0, 2, 5);
           camera.lookAt(0, 0, 0);
-          if (orbitControls) {
-            orbitControls.target.set(0, 0, 0);
-            orbitControls.update();
+          if (orbitControlsRef.current) {
+            orbitControlsRef.current.target.set(0, 0, 0);
+            initialDistanceRef.current = 5;
+            orbitControlsRef.current.update();
           }
         }
       }, 'resetCamera')
       .name('Reset Camera');
 
-    // Open the folder by default
     cameraFolder.open();
 
-    // Cleanup function
     return () => {
       gui.destroy();
     };
-  }, [orbitControls, camera]); // Added orbitControls as dependency
-
-  // Update controls whenever they change
-  useEffect(() => {
-    if (orbitControls) {
-      orbitControls.enableRotate = controls.enableRotation;
-      orbitControls.enableZoom = controls.enableZoom;
-      orbitControls.update();
-    }
-  }, [controls, orbitControls]);
+  }, [camera]);
 
   return (
     <OrbitControls
-      ref={(ref) => {
-        if (ref) {
-          setOrbitControls(ref);
-          orbitControlsRef.current = ref;
-        }
-      }}
+      ref={orbitControlsRef}
       makeDefault
       minDistance={2}
       maxDistance={10}
       enablePan={false}
-      enableRotate={controls.enableRotation}
-      enableZoom={controls.enableZoom}
+      enableRotate={settingsRef.current.enableRotation}
+      enableZoom={settingsRef.current.enableZoom}
     />
   );
 };
 
-// Main Experience Component
 const Experience = () => {
   return (
     <group>
