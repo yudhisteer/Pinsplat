@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { useCallback } from 'react';
 import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
+import { MeshStandardMaterial } from 'three';
 
 
 
@@ -173,23 +174,77 @@ const Table = () => {
 };
 
 // Bread Component
-const Bread = () => {
-  const gltf = useLoader(GLTFLoader, "/bread.glb", (loader) => {
-    loader.setDRACOLoader(dracoLoader);
-  });
 
+const Bread = () => {
+  const gltf = useLoader(GLTFLoader, "/bread.glb");
   const pivotRef = useRef();
+  const meshRef = useRef();
   const { camera } = useThree();
-  const baseScale = 100; // Adjust this to set the base size of the axes
+  const originalMaterials = useRef(new Map());
+
+  const [showAxes, setShowAxes] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const baseScale = 100;
+
+  // Store original materials and set up hover effect
+  useEffect(() => {
+    if (gltf.scene) {
+      gltf.scene.traverse((child) => {
+        if (child.isMesh) {
+          // Store original material if not already stored
+          if (!originalMaterials.current.has(child)) {
+            originalMaterials.current.set(child, child.material.clone());
+            
+            // Create hover material by cloning original and adding emissive
+            const hoverMaterial = child.material.clone();
+            hoverMaterial.emissive = new THREE.Color(0xffff00);
+            hoverMaterial.emissiveIntensity = 0.1;
+            
+            // Add the hover material to the mesh's userData
+            child.userData.hoverMaterial = hoverMaterial;
+          }
+        }
+      });
+    }
+
+    return () => {
+      // Cleanup materials
+      originalMaterials.current.clear();
+    };
+  }, [gltf.scene]);
+
+  // Handle hover state changes
+  useEffect(() => {
+    if (gltf.scene) {
+      gltf.scene.traverse((child) => {
+        if (child.isMesh) {
+          child.material = hovered 
+            ? child.userData.hoverMaterial 
+            : originalMaterials.current.get(child);
+        }
+      });
+    }
+  }, [hovered]);
 
   useFrame(() => {
     if (pivotRef.current) {
-      // Calculate distance from camera to object
       const distance = camera.position.distanceTo(pivotRef.current.position);
-      // Adjust scale based on distance
       pivotRef.current.scale.setScalar(distance / baseScale);
     }
   });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!meshRef.current) return;
+      if (event.target && !meshRef.current.userData.clicked) {
+        setShowAxes(false);
+      }
+      meshRef.current.userData.clicked = false;
+    };
+
+    window.addEventListener("pointerdown", handleClickOutside);
+    return () => window.removeEventListener("pointerdown", handleClickOutside);
+  }, []);
 
   return (
     <group>
@@ -198,18 +253,28 @@ const Bread = () => {
         anchor={[0, 0, 0]}
         depthTest={false}
         lineWidth={4}
-        axisColors={['#9381ff', '#ff4d6d', '#7ae582']}
-        scale={.15} // This will be dynamically adjusted
-        fixed={false} // Set to false to allow dynamic scaling
-        visible={true}
+        axisColors={["#9381ff", "#ff4d6d", "#7ae582"]}
+        scale={0.15}
+        fixed={false}
+        visible={showAxes}
       >
-        <primitive object={gltf.scene} position={[0, 0.36, 0]} />
+        <primitive
+          ref={meshRef}
+          object={gltf.scene}
+          position={[0, 0.36, 0]}
+          onPointerOver={() => setHovered(true)}
+          onPointerOut={() => setHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAxes(true);
+            meshRef.current.userData.clicked = true;
+          }}
+          scale={hovered ? [1.1, 1.1, 1.1] : [1, 1, 1]}
+        />
       </PivotControls>
     </group>
   );
 };
-
-
 
 
 
