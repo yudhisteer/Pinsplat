@@ -9,13 +9,11 @@ import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
 import { MeshStandardMaterial } from 'three';
 import { Html } from '@react-three/drei';
-import { motion } from 'framer-motion';
+import { MessageCircle, Send, X } from 'lucide-react';
 
 // Set up the DRACO Loader
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
-
-
 const CROSSHAIR_SIZE = 0.1; // Size of the crosshair
 const cursorMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -55,54 +53,65 @@ const cursorMaterial = new THREE.ShaderMaterial({
   side: THREE.DoubleSide,
 });
 
-const ChatBox = ({ position, onClose }) => {
+
+// Add new SpawnedModel component
+const SpawnedModel = ({ path, position }) => {
+  const gltf = useLoader(GLTFLoader, path, (loader) => {
+    loader.setDRACOLoader(dracoLoader);
+  });
+
+  return (
+    <primitive 
+      object={gltf.scene} 
+      position={[position.x, position.y, position.z]}
+    />
+  );
+};
+
+
+const ChatBox = ({ position, onClose, onSubmit }) => {
   const [message, setMessage] = useState('');
 
+  
   const handleSubmit = (e) => {
     e.preventDefault();
     if (message.trim()) {
-      console.log('Message sent:', message);
+      onSubmit(message.trim(), position);
       setMessage('');
       onClose();
     }
   };
+  
 
   return (
     <Html position={[position.x, position.y + 0.1, position.z]}>
       <div className="relative transform -translate-x-1/2">
         <div className="bg-white/90 backdrop-blur-sm shadow-lg" style={{ width: '280px' }}>
-          {/* Title */}
-          <div className="px-3 py-2 border-b text-sm font-semibold">
-            Chat Assistant
-          </div>
-          
-          {/* Input area */}
-          <div className="p-2 flex gap-2">
+          <form onSubmit={handleSubmit} className="p-2 flex items-center gap-2">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSubmit(e);
-                }
-              }}
-              className="flex-1 px-3 py-1.5 border rounded-md text-sm"
+              className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none"
               placeholder="Type a message..."
               autoFocus
             />
             <button
-              onClick={handleSubmit}
-              className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600"
+              type="submit"
+              className="px-2 py-1.5 text-white bg-black hover:bg-gray-800 rounded"
             >
               Send
             </button>
-          </div>
+
+          </form>
         </div>
       </div>
     </Html>
   );
 };
+
+
+
 
 // Plane Component
 const Plane = ({ breadRef }) => {
@@ -120,7 +129,26 @@ const Plane = ({ breadRef }) => {
   const { camera, gl } = useThree();
   const raycaster = useRef(new Raycaster());
   const mouse = useRef(new Vector2());
+  const [spawnedModels, setSpawnedModels] = useState([]);
 
+
+  const handleChatSubmit = (message, position) => {
+    const modelMap = {
+      basket: { path: "/basket.glb", yOffset: 0.04 },
+      water: { path: "/water.glb", yOffset: 0.0 }
+    };
+    
+    const model = modelMap[message.toLowerCase()];
+    if (model) {
+      setSpawnedModels(prev => [...prev, {
+        id: Date.now(),
+        type: message.toLowerCase(),
+        position: {...position, y: position.y + model.yOffset},
+        path: model.path
+      }]);
+    }
+  };
+  
 const handleMouseDown = (event) => {
   const { clientX, clientY } = event;
   const rect = gl.domElement.getBoundingClientRect();
@@ -194,35 +222,41 @@ const handleMouseDown = (event) => {
     };
   }, [gl.domElement, handleMouseMove]);
 
-  return (
-    <group ref={planeRef}>
-      <Table ref={tableRef} />
-      <primitive object={gltf.scene} />
-      {hoverPoint && (
-        <mesh 
-          position={[hoverPoint.x, hoverPoint.y + 0.02, hoverPoint.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[CROSSHAIR_SIZE, CROSSHAIR_SIZE]} />
-          <primitive object={cursorMaterial.clone()}  dispose={null}/>
-        </mesh>
-      )}
-      // Replace the basket mapping section with:
-      // Replace the chatBoxes mapping with:
-      {chatBox && (
-        <ChatBox
-          key={chatBox.id}
-          position={chatBox.position}
-          onClose={() => setChatBox(null)}
-        />
-      )}
-    </group>
-  );
-};
+return (
+  <group ref={planeRef}>
+    <Table ref={tableRef} />
+    <primitive object={gltf.scene} />
+    {spawnedModels.map(model => (
+      <SpawnedModel 
+        key={model.id}
+        path={model.path}
+        position={model.position}
+      />
+    ))}
+    {hoverPoint && (
+      <mesh 
+        position={[hoverPoint.x, hoverPoint.y + 0.02, hoverPoint.z]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <planeGeometry args={[CROSSHAIR_SIZE, CROSSHAIR_SIZE]} />
+        <primitive object={cursorMaterial.clone()} dispose={null}/>
+      </mesh>
+    )}
+    {chatBox && (
+      <ChatBox
+        key={chatBox.id}
+        position={chatBox.position}
+        onClose={() => setChatBox(null)}
+        onSubmit={handleChatSubmit}
+      />
+    )}
+  </group>
+);
+}
 
 // Basket Component
 const Basket = ({ position }) => {
-  const gltf = useLoader(GLTFLoader, "/water.glb", (loader) => {
+  const gltf = useLoader(GLTFLoader, "/basket.glb", (loader) => {
     loader.setDRACOLoader(dracoLoader);
   });
 
