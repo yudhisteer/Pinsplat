@@ -1,14 +1,13 @@
 import { useLoader, useFrame, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, forwardRef } from "react";
 import { Vector2, Raycaster } from "three";
 import * as THREE from 'three';
 import { useCallback } from 'react';
 import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
 import { MeshStandardMaterial } from 'three';
-
 
 
 
@@ -54,7 +53,7 @@ const cursorMaterial = new THREE.ShaderMaterial({
 });
 
 // Plane Component
-const Plane = () => {
+const Plane = ({ breadRef }) => {
   const gltf = useLoader(GLTFLoader, "/plane.glb", (loader) => {
     loader.setDRACOLoader(dracoLoader);
   });
@@ -63,6 +62,7 @@ const Plane = () => {
 
   // Reference to make the group clickable
   const planeRef = useRef();
+  const tableRef = useRef();
 
   // State for click positions
   const [clickPositions, setClickPositions] = useState([]);
@@ -82,13 +82,19 @@ const Plane = () => {
 
     raycaster.current.setFromCamera(mouse.current, camera);
 
-    const intersects = raycaster.current.intersectObjects(
-      planeRef.current.children,
-      true
-    );
+    // First, check if the ray intersects with the bread
+    const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
 
-    if (intersects.length > 0) {
-      setClickPositions((prev) => [...prev, intersects[0].point]);
+    if (breadIntersects.length === 0) {
+      // If not intersecting with bread, then check for plane intersection
+      const planeIntersects = raycaster.current.intersectObjects(
+        planeRef.current.children,
+        true
+      );
+
+      if (planeIntersects.length > 0) {
+        setClickPositions((prev) => [...prev, planeIntersects[0].point]);
+      }
     }
   };
 
@@ -102,7 +108,6 @@ const Plane = () => {
   const [hoverPoint, setHoverPoint] = useState(null);
   
   const handleMouseMove = useCallback((event) => {
-    setHoverPoint(null);
     const { clientX, clientY } = event;
     const rect = gl.domElement.getBoundingClientRect();
 
@@ -112,17 +117,26 @@ const Plane = () => {
     );
 
     raycaster.current.setFromCamera(mouse.current, camera);
-    const intersects = raycaster.current.intersectObjects(
-      [planeRef.current.children[0]],
-      true
-    );
 
-    if (intersects.length > 0) {
-      setHoverPoint(intersects[0].point);
+    // First check if we're hovering over the bread
+    const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
+    
+    if (breadIntersects.length === 0) {
+      // If not intersecting with bread, check for table intersection
+      const planeIntersects = raycaster.current.intersectObjects(
+        planeRef.current.children,
+        true
+      );
+
+      if (planeIntersects.length > 0) {
+        setHoverPoint(planeIntersects[0].point);
+      } else {
+        setHoverPoint(null);
+      }
     } else {
-      setHoverPoint(null);
+      setHoverPoint(null); // Hide crosshair when over bread
     }
-  }, [camera, gl]);
+  }, [camera, gl, breadRef]);
 
   useEffect(() => {
     gl.domElement.addEventListener('mousemove', handleMouseMove);
@@ -133,10 +147,13 @@ const Plane = () => {
 
   return (
     <group ref={planeRef}>
+      <Table ref={tableRef} />
       <primitive object={gltf.scene} />
       {hoverPoint && (
-        <mesh position={[hoverPoint.x, hoverPoint.y + 0.02, hoverPoint.z]}
-           rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh 
+          position={[hoverPoint.x, hoverPoint.y + 0.02, hoverPoint.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
           <planeGeometry args={[0.1, 0.1]} />
           <primitive object={cursorMaterial.clone()} />
         </mesh>
@@ -165,17 +182,16 @@ const Basket = ({ position }) => {
 };
 
 // Table Component
-const Table = () => {
+const Table = forwardRef((props, ref) => {
   const gltf = useLoader(GLTFLoader, "/table.glb", (loader) => {
     loader.setDRACOLoader(dracoLoader);
   });
-
-  return <primitive object={gltf.scene} />;
-};
+  return <primitive ref={ref} object={gltf.scene} />;
+});
 
 // Bread Component
 
-const Bread = () => {
+const Bread = forwardRef((props, ref) => {
   const gltf = useLoader(GLTFLoader, "/bread.glb");
   const pivotRef = useRef();
   const meshRef = useRef();
@@ -261,7 +277,7 @@ const Bread = () => {
   }, []);
 
   return (
-    <group>
+    <group ref={ref}>
       <PivotControls
         ref={pivotRef}
         anchor={[0, 0, 0]}
@@ -293,9 +309,9 @@ const Bread = () => {
           scale={hovered ? [1.1, 1.1, 1.1] : [1, 1, 1]}
         />
       </PivotControls>
-    </group>
+    </group>  
   );
-};
+});
 
 
 
@@ -496,15 +512,17 @@ const GuiControls = () => {
 };
 
 const Experience = () => {
+  const breadRef = useRef();
   return (
     <group>
       <GuiControls />
       <ambientLight intensity={1} />
-      <Plane />
+      <Plane breadRef={breadRef} />
       <Table />
-      <Bread />
+      <Bread ref={breadRef} />
     </group>
   );
 };
+
 
 export default Experience;
