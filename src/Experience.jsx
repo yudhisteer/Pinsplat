@@ -181,10 +181,24 @@ const Bread = () => {
   const meshRef = useRef();
   const { camera } = useThree();
   const originalMaterials = useRef(new Map());
-
+  const [isHovering, setIsHovering] = useState(false);
   const [showAxes, setShowAxes] = useState(false);
   const [hovered, setHovered] = useState(false);
   const baseScale = 100;
+
+
+  
+  useEffect(() => {
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      canvas.style.cursor = isHovering ? 'pointer' : 'default';
+    }
+    return () => {
+      if (canvas) {
+        canvas.style.cursor = 'default';
+      }
+    };
+  }, [isHovering]);
 
   // Store original materials and set up hover effect
   useEffect(() => {
@@ -263,8 +277,14 @@ const Bread = () => {
           ref={meshRef}
           object={gltf.scene}
           position={[0, 0.36, 0]}
-          onPointerOver={() => setHovered(true)}
-          onPointerOut={() => setHovered(false)}
+          onPointerOver={() => {
+            setHovered(true);
+            setIsHovering(true);
+          }}
+          onPointerOut={() => {
+            setHovered(false);
+            setIsHovering(false);
+          }}
           onClick={(e) => {
             e.stopPropagation();
             setShowAxes(true);
