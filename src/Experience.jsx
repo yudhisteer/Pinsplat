@@ -148,41 +148,51 @@ const Plane = ({ breadRef }) => {
       }]);
     }
   };
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setChatBox(null);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
   
-const handleMouseDown = (event) => {
-  const { clientX, clientY } = event;
-  const rect = gl.domElement.getBoundingClientRect();
-
-  mouse.current.set(
-    ((clientX - rect.left) / rect.width) * 2 - 1,
-    -((clientY - rect.top) / rect.height) * 2 + 1
-  );
-
-  raycaster.current.setFromCamera(mouse.current, camera);
-
-  // First, check if the ray intersects with the bread
-  const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
-
-  if (breadIntersects.length === 0) {
-    // If not intersecting with bread, then check for table intersection
-    const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
-
-    if (tableIntersects.length > 0 && tableIntersects[0].point.y >= 0) {
-      const intersectionPoint = tableIntersects[0].point;
-      // Replace existing chat box with new one
-      setChatBox({ 
-        id: Date.now(), 
-        position: intersectionPoint 
-      });
+  const handleMouseDown = (event) => {
+    if (chatBox) {
+      setChatBox(null);
+      return;
     }
-  }
-};
+  
+    const { clientX, clientY } = event;
+    const rect = gl.domElement.getBoundingClientRect();
+    mouse.current.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+  
+    raycaster.current.setFromCamera(mouse.current, camera);
+    const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
+  
+    if (breadIntersects.length === 0) {
+      const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
+      if (tableIntersects.length > 0 && tableIntersects[0].point.y >= 0) {
+        setChatBox({ 
+          id: Date.now(),
+          position: tableIntersects[0].point
+        });
+      }
+    }
+  };
+
+
   useEffect(() => {
     gl.domElement.addEventListener("mousedown", handleMouseDown);
     return () => {
       gl.domElement.removeEventListener("mousedown", handleMouseDown);
     };
-  }, [gl.domElement]);
+  }, [gl.domElement, chatBox]);
 
   const [hoverPoint, setHoverPoint] = useState(null);
   
