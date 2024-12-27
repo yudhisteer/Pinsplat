@@ -10,6 +10,7 @@ import GUI from 'lil-gui';
 import { MeshStandardMaterial } from 'three';
 import { Html } from '@react-three/drei';
 import { MessageCircle, Send, X } from 'lucide-react';
+import { createContext, useContext } from 'react';
 
 // Set up the DRACO Loader
 const dracoLoader = new DRACOLoader();
@@ -285,8 +286,19 @@ const Table = forwardRef((props, ref) => {
   return <primitive ref={ref} object={gltf.scene} />;
 });
 
-// Bread Component
 
+const ControlsContext = createContext();
+export const ControlsProvider = ({ children }) => {
+  const [controlsEnabled, setControlsEnabled] = useState(true);
+  
+  return (
+    <ControlsContext.Provider value={{ controlsEnabled, setControlsEnabled }}>
+      {children}
+    </ControlsContext.Provider>
+  );
+};
+
+// Bread Component
 const Bread = forwardRef((props, ref) => {
   const gltf = useLoader(GLTFLoader, "/bread.glb");
   const pivotRef = useRef();
@@ -297,7 +309,7 @@ const Bread = forwardRef((props, ref) => {
   const [showAxes, setShowAxes] = useState(false);
   const [hovered, setHovered] = useState(false);
   const baseScale = 100;
-
+  const { setControlsEnabled } = useContext(ControlsContext);
 
   
   useEffect(() => {
@@ -364,12 +376,26 @@ const Bread = forwardRef((props, ref) => {
       if (!meshRef.current) return;
       if (event.target && !meshRef.current.userData.clicked) {
         setShowAxes(false);
+        setControlsEnabled(true); // Re-enable controls
       }
       meshRef.current.userData.clicked = false;
     };
-
+  
     window.addEventListener("pointerdown", handleClickOutside);
     return () => window.removeEventListener("pointerdown", handleClickOutside);
+  }, []);
+
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setShowAxes(false);
+        setControlsEnabled(true);
+      }
+    };
+  
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
   }, []);
 
   return (
@@ -383,7 +409,7 @@ const Bread = forwardRef((props, ref) => {
         scale={0.15}
         fixed={false}
         visible={showAxes}
-        activeAxes={[true, false, true]} // [x, y, z] - setting z to false
+        activeAxes={[true, false, true]}
       >
         <primitive
           ref={meshRef}
@@ -400,6 +426,7 @@ const Bread = forwardRef((props, ref) => {
           onClick={(e) => {
             e.stopPropagation();
             setShowAxes(true);
+            setControlsEnabled(false); // Disable controls when bread is clicked
             meshRef.current.userData.clicked = true;
           }}
           scale={hovered ? [1.1, 1.1, 1.1] : [1, 1, 1]}
@@ -415,21 +442,38 @@ const GuiControls = () => {
   const { camera } = useThree();
   const orbitControlsRef = useRef();
   const guiRef = useRef();
+  const { controlsEnabled } = useContext(ControlsContext);
   const initialDistanceRef = useRef(5);
   const initialRotationRef = useRef(new THREE.Euler());
   const initialPositionRef = useRef(new THREE.Vector3());
-  
+
   const lastLoggedValues = useRef({
     position: new THREE.Vector3(),
     rotation: new THREE.Euler(),
     distance: 0
   });
-  
+
   const settingsRef = useRef({
     enableRotation: true,
     enableZoom: true,
     showLogs: true
   });
+
+  useEffect(() => {
+    if (controlsEnabled === false) {
+      initialDistanceRef.current = camera.position.distanceTo(orbitControlsRef.current.target);
+      initialRotationRef.current.copy(camera.rotation);
+      initialPositionRef.current.copy(camera.position);
+    }
+    
+    settingsRef.current.enableRotation = controlsEnabled;
+    settingsRef.current.enableZoom = controlsEnabled;
+    
+    if (orbitControlsRef.current) {
+      orbitControlsRef.current.enableRotate = controlsEnabled;
+      orbitControlsRef.current.enableZoom = controlsEnabled;
+    }
+  }, [controlsEnabled]);
 
   // Prevent zoom and rotation events
   useEffect(() => {
@@ -503,12 +547,11 @@ const GuiControls = () => {
   });
 
   useEffect(() => {
-    if (guiRef.current) return;
-    
     const gui = new GUI({ width: 300 });
     guiRef.current = gui;
     
     const cameraFolder = gui.addFolder('Camera Controls');
+    
     
     cameraFolder
       .add(settingsRef.current, 'enableRotation')
@@ -518,13 +561,11 @@ const GuiControls = () => {
         if (orbitControlsRef.current) {
           orbitControlsRef.current.enableRotate = value;
           
-          // Store initial rotation and position when disabling rotation
           if (!value) {
             initialRotationRef.current.copy(camera.rotation);
             initialPositionRef.current.copy(camera.position);
           }
 
-          // Disable all rotation-related controls
           orbitControlsRef.current.mouseButtons = {
             LEFT: value ? THREE.MOUSE.ROTATE : null,
             MIDDLE: null,
@@ -552,17 +593,6 @@ const GuiControls = () => {
             initialDistanceRef.current = camera.position.distanceTo(orbitControlsRef.current.target);
           }
 
-          orbitControlsRef.current.mouseButtons = {
-            LEFT: settingsRef.current.enableRotation ? THREE.MOUSE.ROTATE : null,
-            MIDDLE: null,
-            RIGHT: null
-          };
-          
-          orbitControlsRef.current.touches = {
-            ONE: settingsRef.current.enableRotation ? THREE.TOUCH.ROTATE : null,
-            TWO: null
-          };
-          
           orbitControlsRef.current.update();
         }
       });
@@ -589,10 +619,31 @@ const GuiControls = () => {
 
     cameraFolder.open();
 
+    // Update GUI controllers based on controlsEnabled
+    const controllers = cameraFolder.controllers;
+    controllers.forEach(controller => {
+      if (controller.property === 'enableRotation' || controller.property === 'enableZoom') {
+        controller.setValue(controlsEnabled);
+      }
+    });
+
     return () => {
       gui.destroy();
     };
-  }, [camera]);
+  }, []);
+
+  useEffect(() => {
+    if (!guiRef.current) return;
+    const gui = guiRef.current;
+    const folder = gui.folders[0];
+    
+    settingsRef.current.enableRotation = controlsEnabled;
+    settingsRef.current.enableZoom = controlsEnabled;
+    
+    folder.controllers.forEach(controller => {
+      controller.updateDisplay();
+    });
+  }, [controlsEnabled]);
 
   return (
     <OrbitControls
@@ -601,8 +652,8 @@ const GuiControls = () => {
       minDistance={2}
       maxDistance={10}
       enablePan={false}
-      enableRotate={settingsRef.current.enableRotation}
-      enableZoom={settingsRef.current.enableZoom}
+      enableRotate={controlsEnabled}
+      enableZoom={controlsEnabled}
     />
   );
 };
@@ -610,15 +661,16 @@ const GuiControls = () => {
 const Experience = () => {
   const breadRef = useRef();
   return (
-    <group>
-      <GuiControls />
-      <ambientLight intensity={1} />
-      <Plane breadRef={breadRef} />
-      <Table />
-      <Bread ref={breadRef} />
-    </group>
+    <ControlsProvider>
+      <group>
+        <GuiControls />
+        <ambientLight intensity={1} />
+        <Plane breadRef={breadRef} />
+        <Table />
+        <Bread ref={breadRef} />
+      </group>
+    </ControlsProvider>
   );
 };
-
 
 export default Experience;
