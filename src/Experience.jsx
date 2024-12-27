@@ -14,11 +14,12 @@ import { MeshStandardMaterial } from 'three';
 // Set up the DRACO Loader
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
-
+const CROSSHAIR_SIZE = 0.1; // Size of the crosshair
 const cursorMaterial = new THREE.ShaderMaterial({
   uniforms: {
     color: { value: new THREE.Color(0xffffff) },
     opacity: { value: 2 },
+    size: { value: CROSSHAIR_SIZE },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -63,14 +64,10 @@ const Plane = ({ breadRef }) => {
   // Reference to make the group clickable
   const planeRef = useRef();
   const tableRef = useRef();
-
-  // State for click positions
   const [clickPositions, setClickPositions] = useState([]);
-
   const { camera, gl } = useThree();
   const raycaster = useRef(new Raycaster());
   const mouse = useRef(new Vector2());
-
   const handleMouseDown = (event) => {
     const { clientX, clientY } = event;
     const rect = gl.domElement.getBoundingClientRect();
@@ -87,13 +84,11 @@ const Plane = ({ breadRef }) => {
 
     if (breadIntersects.length === 0) {
       // If not intersecting with bread, then check for plane intersection
-      const planeIntersects = raycaster.current.intersectObjects(
-        planeRef.current.children,
-        true
-      );
+      const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
 
-      if (planeIntersects.length > 0) {
-        setClickPositions((prev) => [...prev, planeIntersects[0].point]);
+      if (tableIntersects.length > 0 && tableIntersects[0].point.y >= 0) {
+        const intersectionPoint = tableIntersects[0].point;
+        setClickPositions((prev) => [...prev, intersectionPoint]);
       }
     }
   };
@@ -110,31 +105,29 @@ const Plane = ({ breadRef }) => {
   const handleMouseMove = useCallback((event) => {
     const { clientX, clientY } = event;
     const rect = gl.domElement.getBoundingClientRect();
-
+  
     mouse.current.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1
     );
-
+  
     raycaster.current.setFromCamera(mouse.current, camera);
-
+  
     // First check if we're hovering over the bread
     const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
     
-    if (breadIntersects.length === 0) {
-      // If not intersecting with bread, check for table intersection
-      const planeIntersects = raycaster.current.intersectObjects(
-        planeRef.current.children,
-        true
-      );
-
-      if (planeIntersects.length > 0) {
-        setHoverPoint(planeIntersects[0].point);
-      } else {
-        setHoverPoint(null);
-      }
+    if (breadIntersects.length > 0) {
+      setHoverPoint(null);
+      return; // Exit early if we hit bread
+    }
+  
+    // If not on bread, check table intersection
+    const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
+  
+    if (tableIntersects.length > 0) {
+      setHoverPoint(tableIntersects[0].point);
     } else {
-      setHoverPoint(null); // Hide crosshair when over bread
+      setHoverPoint(null);
     }
   }, [camera, gl, breadRef]);
 
@@ -154,8 +147,8 @@ const Plane = ({ breadRef }) => {
           position={[hoverPoint.x, hoverPoint.y + 0.02, hoverPoint.z]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
-          <planeGeometry args={[0.1, 0.1]} />
-          <primitive object={cursorMaterial.clone()} />
+          <planeGeometry args={[CROSSHAIR_SIZE, CROSSHAIR_SIZE]} />
+          <primitive object={cursorMaterial.clone()}  dispose={null}/>
         </mesh>
       )}
       {clickPositions.map((position, index) => (
