@@ -8,12 +8,14 @@ import { useCallback } from 'react';
 import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
 import { MeshStandardMaterial } from 'three';
-
-
+import { Html } from '@react-three/drei';
+import { motion } from 'framer-motion';
 
 // Set up the DRACO Loader
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath("/draco/");
+
+
 const CROSSHAIR_SIZE = 0.1; // Size of the crosshair
 const cursorMaterial = new THREE.ShaderMaterial({
   uniforms: {
@@ -53,6 +55,55 @@ const cursorMaterial = new THREE.ShaderMaterial({
   side: THREE.DoubleSide,
 });
 
+const ChatBox = ({ position, onClose }) => {
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (message.trim()) {
+      console.log('Message sent:', message);
+      setMessage('');
+      onClose();
+    }
+  };
+
+  return (
+    <Html position={[position.x, position.y + 0.1, position.z]}>
+      <div className="relative transform -translate-x-1/2">
+        <div className="bg-white/90 backdrop-blur-sm shadow-lg" style={{ width: '280px' }}>
+          {/* Title */}
+          <div className="px-3 py-2 border-b text-sm font-semibold">
+            Chat Assistant
+          </div>
+          
+          {/* Input area */}
+          <div className="p-2 flex gap-2">
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSubmit(e);
+                }
+              }}
+              className="flex-1 px-3 py-1.5 border rounded-md text-sm"
+              placeholder="Type a message..."
+              autoFocus
+            />
+            <button
+              onClick={handleSubmit}
+              className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </Html>
+  );
+};
+
 // Plane Component
 const Plane = ({ breadRef }) => {
   const gltf = useLoader(GLTFLoader, "/plane.glb", (loader) => {
@@ -64,35 +115,40 @@ const Plane = ({ breadRef }) => {
   // Reference to make the group clickable
   const planeRef = useRef();
   const tableRef = useRef();
-  const [clickPositions, setClickPositions] = useState([]);
+  const [chatBox, setChatBox] = useState(null);
+  //const [clickPositions, setClickPositions] = useState([]);
   const { camera, gl } = useThree();
   const raycaster = useRef(new Raycaster());
   const mouse = useRef(new Vector2());
-  const handleMouseDown = (event) => {
-    const { clientX, clientY } = event;
-    const rect = gl.domElement.getBoundingClientRect();
 
-    mouse.current.set(
-      ((clientX - rect.left) / rect.width) * 2 - 1,
-      -((clientY - rect.top) / rect.height) * 2 + 1
-    );
+const handleMouseDown = (event) => {
+  const { clientX, clientY } = event;
+  const rect = gl.domElement.getBoundingClientRect();
 
-    raycaster.current.setFromCamera(mouse.current, camera);
+  mouse.current.set(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
+  );
 
-    // First, check if the ray intersects with the bread
-    const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
+  raycaster.current.setFromCamera(mouse.current, camera);
 
-    if (breadIntersects.length === 0) {
-      // If not intersecting with bread, then check for plane intersection
-      const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
+  // First, check if the ray intersects with the bread
+  const breadIntersects = raycaster.current.intersectObject(breadRef.current, true);
 
-      if (tableIntersects.length > 0 && tableIntersects[0].point.y >= 0) {
-        const intersectionPoint = tableIntersects[0].point;
-        setClickPositions((prev) => [...prev, intersectionPoint]);
-      }
+  if (breadIntersects.length === 0) {
+    // If not intersecting with bread, then check for table intersection
+    const tableIntersects = raycaster.current.intersectObject(tableRef.current, true);
+
+    if (tableIntersects.length > 0 && tableIntersects[0].point.y >= 0) {
+      const intersectionPoint = tableIntersects[0].point;
+      // Replace existing chat box with new one
+      setChatBox({ 
+        id: Date.now(), 
+        position: intersectionPoint 
+      });
     }
-  };
-
+  }
+};
   useEffect(() => {
     gl.domElement.addEventListener("mousedown", handleMouseDown);
     return () => {
@@ -151,19 +207,22 @@ const Plane = ({ breadRef }) => {
           <primitive object={cursorMaterial.clone()}  dispose={null}/>
         </mesh>
       )}
-      {clickPositions.map((position, index) => (
-        <Basket
-          key={index}
-          position={[position.x, position.y + 0.02, position.z]}
+      // Replace the basket mapping section with:
+      // Replace the chatBoxes mapping with:
+      {chatBox && (
+        <ChatBox
+          key={chatBox.id}
+          position={chatBox.position}
+          onClose={() => setChatBox(null)}
         />
-      ))}
+      )}
     </group>
   );
 };
 
 // Basket Component
 const Basket = ({ position }) => {
-  const gltf = useLoader(GLTFLoader, "/basket.glb", (loader) => {
+  const gltf = useLoader(GLTFLoader, "/water.glb", (loader) => {
     loader.setDRACOLoader(dracoLoader);
   });
 

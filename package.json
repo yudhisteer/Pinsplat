@@ -17,6 +17,7 @@
     "@react-three/drei": "9.108",
     "@react-three/fiber": "^8.16.8",
     "@react-three/postprocessing": "^2.16.3",
+    "framer-motion": "^11.15.0",
     "highlight.js": "^11.11.1",
     "leva": "^0.9.35",
     "postprocessing": "^6.36.4",
