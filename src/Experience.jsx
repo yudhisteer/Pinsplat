@@ -5,15 +5,14 @@ import { Vector2, Raycaster } from "three";
 import * as THREE from 'three';
 import { PivotControls, OrbitControls } from '@react-three/drei';
 import GUI from 'lil-gui';
-import { MeshStandardMaterial } from 'three';
 import { Html } from '@react-three/drei';
-import { MessageCircle, Send, X } from 'lucide-react';
 import { useRef, useState, useEffect, forwardRef, useMemo, useCallback, createContext, useContext } from "react";
 import OpenAI from 'openai';
 
+
 const openai = new OpenAI({
-  apiKey: process.env.REACT_APP_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
+    apiKey: process.env.REACT_APP_OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true
 });
 
 
